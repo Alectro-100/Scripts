@@ -35,3 +35,4 @@ else
     echo -e "${red}Invalid action: ${action}. Use 'encode' or 'decode'.${no}"
     exit 1
 fi
+
