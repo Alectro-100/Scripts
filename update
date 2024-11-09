@@ -1,0 +1,56 @@
+#!/bin/bash
+
+red='\033[1;31m'
+green='\033[1;32m'
+yellow='\033[1;33m'
+blue='\033[1;34m'
+purple='\033[1;35m'
+sky='\033[1;36m'
+
+no_color='\033[0m'
+
+# Functions
+function check_sudo() {
+    sudo -v
+}
+
+function yellow_color() {
+	while IFS= read -r line; do
+		echo -e "${yellow}${line}${no_color}"
+	done
+}
+
+function green_color() {
+	while IFS= read -r line; do
+		echo -e "${green}${line}${no_color}"
+	done
+}
+
+
+function handle_error() {
+	local exit_code=$1
+	local message=$2
+	if [ $exit_code -ne 0 ]; then
+		echo -e "${red}Error: ${message}${no_color}"
+		exit $exit_code
+	fi
+}
+
+
+
+# Main script
+
+check_sudo
+date_h=$(date)
+echo -e "\n"
+echo -e "${blue}Update Time ${date_h}${no_color}"
+echo -e "${purple}Updating the system...${no_color}"
+echo -e "\n${sky}#----------------${purple}Updating${no_color}${sky}----------------#${no_color}"
+sudo apt-get update |& yellow_color
+handle_error $? "failed to update package list."
+
+echo -e "\n"
+echo -e "${sky}#----------------${purple}Upgrading${no_color}${sky}----------------#${no_color}"
+sudo apt-get full-upgrade -y |& green_color
+handle_error $? "Failed to Upgrade packages."
+echo -e "\n"
