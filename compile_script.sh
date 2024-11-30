@@ -1,56 +1,17 @@
 #!/bin/bash
 
-# [[[[        DOCUMENTATION        ]]]]
 
-# Usage:
-# ./script_name.sh [options] [files]
+# Rename this script to `compile` and add to your path
 
-# Options:
-#   -d, --dir, --directory      : Create the default directories (bin, asm, obj, pre) in the current directory.
-#   -dn, --dir-name             : Create directories with custom names. User will be prompted to enter names for:-
-#                                 - C++ directory
-#                                 - C directory
-#   -c, --compiler [compiler]   : Specify the compiler default 'gcc'
-#   -h, --help                  : Display this help message and exit.
-
-
-# Rename this script to your preference
-# Example usage:
-#   1. Run the script with no arguments to create default directories:
-#        ./compile_script -d
-#
-#   2. Run the script with custom directory names:
-#        ./compile_script -dn
-#
-#   3. Compile a C++ file with a specific compiler:
-#        ./compile_script -c g++ example.cpp
-#
-# Author: [Raj Kushwaha]
-
-
-
-# Setting up varibales
-nargs="$@"
-USER="$USER"
 
 # Defind colors
 red="\033[38;2;255;0;0m"
 green="\033[38;2;0;255;0m"
 blue="\033[38;2;0;0;255m"
 yellow="\033[38;2;180;255;0m"
+some_color="\033[38;2;50;100;180m"
 no_col="\033[0m"
 sky="\033[38;2;80;254;200m"
-
-
-
-# Setting up golbal variables
-# Check for arguments
-if [[ -z $nargs ]]; then
-    echo -e "${red}[ERROR]${no_col}: At least one parameter expected"
-    exit 1
-fi
-
-
 
 
 # Check if the script is being run as sudo
@@ -61,232 +22,347 @@ check_sudo() {
 }   
 
 
-
-# Saves the direcotry names in home
+# Saves the config in the home dir
 save_config() {
-    local CPP="$1"
-    local C="$2"
-    echo "CPP_DirName='$CPP'" > ~/.compile_script_config.txt
-    echo "C_DirName='$C'" >> ~/.compile_script_config.txt
+    purge="$1"
+    if [[ $purge == "purge" ]]; then
+        echo "Purging configuration..."
+        echo > ~/"${file_name}"
+        return 0;
+    fi
+    
+    # Debug Messages
+    # echo "Saving Your Configs:"
+    # echo "Config file: ~/$file_name"
+    # echo "Project Name: $set_project_name : '$ProjectName'"
+    # echo "C-plus-plus directory: $set_cpp_dir_name : '$CPP_DirName'"
+    # echo "C directory: $set_c_dir_name : '$C_DirName'"
+    # echo "Compiler: $set_given_compiler : '$Default_Compiler'"
+    # echo "Verbose: $verbose"
+    # echo -e "\n\n"
+
+    echo > ~/"${file_name}"
+    [[ $set_project_name == "true" ]] && echo "bool_project_name='true'" >> ~/"${file_name}"
+    [[ $verbose == "on" ]] && echo "verbose='on'" >> ~/"${file_name}"
+    [[ $verbose == "off" ]] && echo "verbose='off'" >> ~/"${file_name}"
+    [[ $set_project_name == "true" ]] && echo "set_project_name='true'" >> ~/"${file_name}"
+    [[ $set_given_compiler == "true" ]] && echo "Default_Compiler='${Compiler}'" >> ~/"${file_name}" 
+    echo "CPP_DirName='${CPP_DirName}'" >> ~/"${file_name}"
+    echo "C_DirName='${C_DirName}'" >> ~/"${file_name}"
+    echo "ProjectName='${ProjectName}'" >> ~/"${file_name}"
 }
 
 
-
-
-Install_tool() {
-    # install toll based on package manger
+Install_Tool() {
+    # install tool based on package manger
     utility="$1"
-    if command -v "$utility" &> /dev/null ; then
-        echo "'$utility'is already installed"
+    echo -e "Checking if '${green}${utility}${no_col} installed on your system...'"
+    if ! command -v "$utility" &> /dev/null ; then
+        echo -e "${green}${utility}${no_col} Not found\nWould you like to install it? [yes/no]"
+        read -r yes_no
+        if [[ $yes_no =~ ^("y"|"Y"|"yes"|"Yes"|"YES"|"YEs"|"YeS"|"yES"|"yES")$ ]]; then
+            if command -v dnf &> /dev/null ; then
+                sudo dnf install "$utility"
+            elif command -v apt &> /dev/null ; then
+                sudo apt install "$utility" -y
+            elif command -v pacman &> /dev/null ; then
+                sudo pacman -S "$utility" --noconfirm
+            elif command -v zypper &> /dev/null ; then
+                sudo zypper install "$utility"
+            elif command -v yum &> /dev/null ; then
+                sudo yum install "$utility"
+            elif command -v snap &> /dev/null ; then
+                sudo snap install "$utility" 
+            elif command -v flatpak &> /dev/null ; then
+                flatpak install flathub "$utility"
+            fi
+
+            if [[ $? -eq 0 ]]; then
+                echo -e "'${utility} installed successfully'"
+                return 0
+            else
+                echo -e "${red}[ERROR]:${no_col} '$utility' cannot be installed"
+                return 1
+            fi
+        fi
+    else
+        echo -e "'${green}${utility}${no_col}' already installed"
+        return 0
     fi
-    if command -v dnf &> /dev/null ; then
-        sudo dnf install "$utility"
-    elif command -v apt &> /dev/null ; then
-        sudo apt install "$utility" -y
-    elif command -v pacman &> /dev/null ; then
-        sudo pacman -S "$utility" --noconfirm
-    elif command -v zypper &> /dev/null ; then
-        sudo zypper install "$utility"
-    elif command -v yum &> /dev/null ; then
-        sudo yum install "$utility"
-    elif command -v snap &> /dev/null ; then
-        sudo snap install "$utility" 
-    elif command -v flatpak &> /dev/null ; then
-        flatpak install flathub "$utility"
-    fi
-    echo -e "'$utility installed successfully'"
 }
 
 
-
-
-CREATE_SUB_DIRS() {
+Create_Sub_Dirs() {
     # Create sub-directories
     local dirs=("bin" "asm" "obj" "pre")
     local ParentDir="$1"
-    cd $ParentDir
     for dir in "${dirs[@]}";do
         if [[ ! -d ./$dir ]]; then
-            mkdir $dir && sudo chown $USER:$USER ./$dir
+            mkdir -p "${ParentDir}/${dir}" && chown $USER:$USER "${ParentDir}/$dir"
         fi
     done
-    cd ../
 }
 
 
-
-
-help_message() {
+Help_Message() {
     # Prints Help message and exit
-    echo "Options:"
-    echo "-d, --dir, --directory      : Create the default directories (bin, asm, obj, pre) in the current directory."
-    echo "-dn, --dir-name             : Create directories with custom names. User will be prompted to enter names for:"
+    echo "Usage $0 [option] [files]"
+    echo -e "\nOptions:"
+    echo "-d, --dir, --directory      : Create the default directories (C++_Directory) (C_Directory) 
+                                        with sub-directories (bin, asm, obj, pre) in the current directory."
+    echo "-dn, --dir-name             : Create directories with user defined names. User will be prompted to enter names for:"
+    echo "                               - Project Directory"
     echo "                               - C++ directory"
     echo "                               - C directory"
-    echo "-c, --compiler [compiler]   : Specify the compiler default 'gcc'"
+    echo "-t, -tr, -tree              : Show all your files"
+    echo "-v, --verbose               : Set verbose 'on'"
+    echo "-p, -r                     : Purge Config File"
+    echo "-c, --compiler [compiler]   : Specify the compiler (default 'gcc')"
     echo "-h, --help                  : Display this help message and exit."
 }
 
 
+Create_Dirs() {
+    local is_project_dir="$1"
+    local is_cpp_dir="$2"
+    local is_c_dir="$3"
+    local no_error=0
 
+    if [[ $is_project_dir == "true" && ! -d "${ProjectName}" ]]; then
+        # Create Project Directory
+        mkdir -p "${ProjectName}"
+        if [[ $? -ne 0 ]]; then
+            echo -e "${blue}[ERROR]:${no_col} Failed to create Project Directory '${blue}${ProjectName}${no_col}'"; exit 1;
+        fi
 
-CREATE_DIRS() {
-    # Create all the necessary directories
-    cd $var 
-    local Default_DirName="$1"
-    
-    [[ ! -d ${Default_DirName} ]] && mkdir "$Default_DirName" && sudo chown $USER:$USER "$Default_DirName"
-    
-    CREATE_SUB_DIRS ${var}/${Default_DirName}
+        # Handle C-plus-plus directory creation 
+        if [[ $is_cpp_dir == "true" && ! -d "${ProjectName}/${CPP_DirName}" ]]; then
+            mkdir -p "${ProjectName}/${CPP_DirName}"
+            if [[ $? -ne 0 ]]; then
+                echo -e "${red}[ERROR]:${no_col} Failed to Create '${blue}${CPP_DirName}${no_col}'"; exit 1;
+            fi 
+            Create_Sub_Dirs "${ProjectName}/${CPP_DirName}"
+            no_error=$(( $no_error + $? ))
+        fi
+        # Handle C directory creation
+        if [[ $is_c_dir == "true" && ! -d "${ProjectName}/${C_DirName}" ]]; then
+            mkdir -p "${ProjectName}/${C_DirName}"
+            if [[ $? -ne 0 ]]; then
+                echo -e "${red}[ERROR]:${no_col} Failed to create '${blue}${C_DirName}${no_col}'"; exit 1;
+            fi 
+            Create_Sub_Dirs "${ProjectName}/${C_DirName}"
+            no_error=$(( $no_error + $? ))
+        fi
 
-    if ! command -v tree &> /dev/null ; then
-        echo -e "Installing ${green}tree${no_col}"
-        Install_tool "tree"
+        if [[ $no_error -eq 0 ]]; then
+            echo -e "${yellow}Created ${ProjectName}${no_col}"
+            tree ${ProjectName} 
+        fi
+        
+    else 
+        # C-plus-plus directory creation handler
+        if [[ $is_cpp_dir == "true" && ! "$CPP_DirName" ]]; then
+            mkdir -p "${CPP_DirName}"
+            if [[ $? -ne 0 ]]; then
+                echo -e "${red}[ERROR]:${no_col} Failed to create '${blue}${CPP_DirName}${no_col}'"; exit 1;
+            fi
+            Create_Sub_Dirs "${CPP_DirName}"
+            echo -e "${yellow}Created ${CPP_DirName}${no_col}"
+            tree ${CPP_DirName} 
+        fi
+
+        # C directory creation handler
+        if [[ $is_c_dir == "true" && ! -d "${C_DirName}" ]]; then
+            mkdir -p "${C_DirName}"
+            if [[ $? -ne 0 ]]; then
+                echo -e "${red}[ERROR]:${no_col} Failed to create '${blue}${C_DirName}${no_col}'"; exit 1;
+            fi
+            Create_Sub_Dirs "${C_DirName}"
+            echo -e "${yellow}Created ${C_DirName}${no_col}"
+            tree ${C_DirName}
+        fi
+        
     fi
-    echo -e "${yellow}Created ${Default_DirName} ${no_col}"
-    echo "$( tree ${var}/${Default_DirName})" 
+
 }
 
 
-
-
-COMPILE() {
+Compile_The_Source() {
     local compile_tool="$1"
-    local compile_file="$2"
-    local compile_fileWithoutExt="${compile_file%.*}"
+    local source_file="$2"
     local target_dir="$3"
+    local source_fileWithoutExt="${source_file%.*}"
 
     # Check if given tool exist
     if ! command -v "$compile_tool" &> /dev/null ; then
         echo -e "${red}[ERROR]:${no_col} Compile tool '"${compile_tool}"' not found"
-        return 1 # Exit function with error code 1 
+        return 1 
     fi
-
-    echo -e "${yellow}Compiling... ${sky}"$compile_file"${no_col}${no_col}"
+    
+    if [[ ! -d $target_dir ]]; then
+        echo -e "The path doesn't exist '${blue}${target_dir}${no_col}'"
+        echo -e "Can't Compile '${green}${source_file}${no_col}'"
+        return 1
+    fi
+    echo -e "${yellow}Compiling... ${sky}'$source_file'${no_col}${no_col}"
     # Compile to BinaryExecutable
-    $compile_tool $compile_file -o "${target_dir}/bin/${compile_fileWithoutExt}.bin"
+    $compile_tool $source_file -o "${target_dir}/bin/${source_fileWithoutExt}.bin" && \
+    [[ $verbose == "on" ]] && echo -e "${some_color}${target_dir}/bin/${no_col}${green}${source_fileWithoutExt}.bin${no_col}"
     # Generate Assembly file
-    $compile_tool -S $compile_file -o "${target_dir}/asm/${compile_fileWithoutExt}.asm"
+    $compile_tool -S $source_file -o "${target_dir}/asm/${source_fileWithoutExt}.asm" && \
+    [[ $verbose == "on" ]] && echo -e "${some_color}${target_dir}/asm/${no_col}${green}${source_fileWithoutExt}.bin${no_col}"
     # Compile to Object file
-    $compile_tool -c $compile_file -o "${target_dir}/obj/${compile_fileWithoutExt}.obj"
+    $compile_tool -c $source_file -o "${target_dir}/obj/${source_fileWithoutExt}.obj" && \
+    [[ $verbose == "on" ]] && echo -e "${some_color}${target_dir}/obj/${no_col}${green}${source_fileWithoutExt}.bin${no_col}"
     # Preprocesses the file
-    $compile_tool -E $compile_file -o "${target_dir}/pre/${compile_fileWithoutExt}.pre" 
+    $compile_tool -E $source_file -o "${target_dir}/pre/${source_fileWithoutExt}.pre" && \
+    [[ $verbose == "on" ]] && echo -e "${some_color}${target_dir}/pre/${no_col}${green}${source_fileWithoutExt}.bin${no_col}"
 }
 
 
-
 # Default Names if not provided
-CPP_DirName="C++_Dir"
-C_DirName="C_Dir"
-
-var=$(realpath .)
+current_path=$(realpath .)
+USER="$USER"
 
 
+# Project defaults
+file_name=".compile_script.conf"
+set_project_name="false"
+set_cpp_dir_name="default"
+set_c_dir_name="default"
+set_given_compiler="false"
+verbose="off"
+
+Default_Compiler="gcc"
+ProjectName="Programming_Dir"
+C_DirName="C_directory"
+CPP_DirName="C++_directory"
+
+
+if [[ $# -eq 0 ]]; then
+    Help_Message
+    exit 1
+fi
+
+
+if ! command -v tree &> /dev/null; then
+    echo "Tree Not found"
+    Install_Tool "tree"
+fi
+
+
+if ! command -v gcc &> /dev/null; then
+    echo "gcc not found"
+    Install_Tool "gcc"
+fi
+    
 
 # Check if the file is being run as sudo
 check_sudo
 
 
-
-# If number of arguments are not Empty
-if [[ -n $nargs ]]; then
-    # Convert 'nargs' to a array to access it's next item based on index
-    read -r -a nargs_array <<< ${nargs}
-    num=0 
-    # Loop only for Given Flags
-    for i in ${nargs_array[@]}; do
-        nargs_="${nargs_array[$num]}"
-        if [[ ${nargs_} =~ ^("-h"|"--help")$ ]]; then
-            help_message
-            exit 0
-        fi
-        
-        if [[ ${nargs_} =~ ^("-d"|"-dir"|'--dir'|'--directory')$ ]]; then
-            # Create directory with default names
-            if [[ ! -d "$CPP_DirName" ]] || [[ ! -d "$C_DirName" ]]; then
-                CREATE_DIRS "$CPP_DirName"
-                CREATE_DIRS "$C_DirName"
-                save_config "$CPP_DirName" "$C_DirName"
-            fi
-
-        elif [[ $nargs_ =~ ^("-dn"|"-dir-name"|'--dir-name'|'--directory-name')$ ]]; then
-            # Create directory with specified names
-            echo -e "Name for your C++ directory (Default: ${blue}C++_Dir${no_col})"
-            read -r CPP_DirName
-            echo -e "Name for your C directory (Defalult: ${blue}C_Dir${no_col})"
-            read -r C_DirName
-            
-            CPP_DirName="${CPP_DirName:-'C++_Dir'}"
-            C_DirName="${C_DirName:-'C_dir'}"
-
-            save_config "$CPP_DirName" "$C_DirName"
-
-            CREATE_DIRS "${CPP_DirName}"
-            CREATE_DIRS "${C_DirName}"
-
-        elif [[ $nargs_ =~ ('-c'|'--compiler')$ ]]; then
-            # Select your compile (GCC, G++, Clang)
-            echo -e "Your specified compiler: '${green}${nargs_array[ $num + 1 ]}${no_col}' will be used"
-            TOOL="${nargs_array[$num + 1]:-"gcc"}"
-            TOOL="${TOOL:-"gcc"}"
-
-        else
-            # If No flags were given, just create directories for compilation
-            if [[ -f ~/compile_script_config.txt ]]; then
-                source ~/.compile_script_config.txt
-            fi
-            
-            if [[ ! -d $CPP_DirName ]] || [[ ! -d $C_DirName ]]; then
-                CREATE_DIRS "$CPP_DirName"
-                CREATE_DIRS "$C_DirName"
-                save_config "$CPP_DirName" "$C_DirName"
-            fi
-        fi
-        (( num++ ))
-    done
-
-
-    num1=0
-    # Loop to compile source file 
-    for source_file in ${nargs_array[@]}; do
-        TOOL="${TOOL:-"gcc"}"
-        nargs__="${nargs_array[$num1]}"
-        # Check if regular file exists
-        if [[ -f $nargs__ ]]; then
-            # Check by its extension .cpp
-            if [[ $nargs__ == *.cpp ]]; then
-                if [[ $TOOL == "gcc" ]]; then
-                    COMPILE "g++" "$source_file" "${CPP_DirName}"
-                else
-                    COMPILE "$TOOL" "$source_file" "${CPP_DirName}"
-                fi
-
-            # Check by its extension .c
-            elif [[ $nargs__ == *.c ]]; then
-                COMPILE "$TOOL" "$nargs__" "${C_DirName}"
-
-            else
-                # Check it content to compile
-                if [[ ! ${nargs__} == -* ]]; then
-                    if  [[ -f ${nargs__} ]]; then
-                        if head -n 1 "${nargs__}" | grep -- "^#include\s*<.*\.h" &> /dev/null ; then
-                            COMPILE "$TOOL" "${source_file}" "${C_DirName}"
-                        elif head -n 1 "${nargs__}" | grep -- "^#include\s*<" &> /dev/null; then
-                            COMPILE "$TOOL" "${source_file}" "${CPP_DirName}"
-                        fi
-                    fi
-                fi
-
-                if [[ ! ${nargs__} == -* ]]; then
-                    if [[ ! -f ${nargs__} ]]; then
-                        echo -e "${red}[ERROR]${no_col}: File '${sky}${nargs__}${no_col}' Doesn't exist"
-                    fi
-                fi
-            fi
-        fi
-    
-        (( num1++ )) 
-    done
+if [[ -f ~/"${file_name}" ]]; then
+    source ~/"${file_name}"
+else
+    touch ~/"${file_name}" && sudo chown $USER:$USER ~/"${file_name}"
 fi
 
 
+## Debug messages
+# echo "Your Configs Before Save:"
+# echo "Config file: ~/$file_name"
+# echo "Project Name: $set_project_name : '$ProjectName'"
+# echo "C-plus-plus directory: $set_cpp_dir_name : '$CPP_DirName'"
+# echo "C directory: $set_c_dir_name : '$C_DirName'"
+# echo "Compiler: $set_given_compiler : '$Default_Compiler'"
+# echo "Verbose: $verbose"
+# echo -e "\n\n"
+
+
+# Loop through flags to process user input
+for flags in "$@"; do
+    case $flags in
+        -d|--dir|--directory)
+            echo "Creating Directories With thier default names"
+            echo -e "'${blue}${CPP_DirName}${no_col}' '${blue}${C_DirName}${no_col}'"
+            set_cpp_dir_name="true"
+            set_c_dir_name="true"
+            bool_project="false"
+            Create_Dirs
+            ;;
+        -dn|--dir-name|--directory-name)
+
+            # Get Project directory name
+            echo -e "Enter you Project Name (default '${blue}${ProjectName}${no_col}')"
+            read NewProject_name
+            [[ -n "$NewProject_name" ]] && { ProjectName="$NewProject_name" ; set_project_name="true" ; }
+
+            # Get C++ Project directory name
+            echo -e "Enter your C++ Project Name (default '${blue}${CPP_DirName}${no_col}')"
+            read NewCPP_name
+            [[ -n $NewCPP_name ]] && { CPP_DirName="$NewCPP_name" ; set_cpp_dir_name="true" ; }
+
+            # Get C Project directory name
+            echo -e "Enter your C Project Name (default '${blue}${C_DirName}${no_col}')"
+            read NewC_name
+            [[ -n $NewC_name ]] && { C_DirName="$NewC_name" ; set_c_dir_name="true" ; }
+
+            # Call the function to create dirs based on user input
+            Create_Dirs "$set_project_name" "$set_cpp_dir_name" "$set_c_dir_name"
+            ;;
+        -c|--compiler|--Default_Compiler|--compiler-name)
+            echo "Enter you compiler name: "
+            read New_Compiler
+            [[ -n $New_Compiler ]] && Default_Compiler="$New_Compiler"  
+            Install_Tool "$Default_Compiler" && set_given_compiler="true"
+            ;;
+        -v|-vo|-v-on|--verbose-on|-verbose|--verbose|--Verbose)
+            verbose="on"
+            ;;
+        -vf|--v-off|-v-off|-verbose-off|--verbose-off)
+            verbose="off"
+            ;;
+        -r|--remove|--purge)
+            save_config "purge"
+            exit 0
+            ;;
+        -t|-tr|-tree|--tree|-Tree|--Tree|-TREE)
+            [[ -d "${ProjectName}" ]] && tree "$ProjectName"
+            [[ -d "${CPP_DirName}" ]] && tree "$CPP_DirName"
+            [[ -d "${C_DirName}" ]] && tree "$C_DirName" 
+            ;;
+        -h|--help|--Help)
+            Help_Message
+            ;;
+    esac
+done
+
+
+# Loop through given source files
+for source_file in "$@"; do
+    if [[ "${source_file}" != -* ]]; then
+        if [[ "${source_file}" == *.cpp  ]]; then
+            # CPP Files
+            [[ $set_project_name == "false" && ! -d "${CPP_DirName}" ]] && Create_Dirs "$set_project_name" "true" "false"
+            [[ $set_project_name == "true" &&  ! -d "${ProjectName}/${CPP_DirName}" ]] && Create_Dirs "$set_project_name" "true" "false"
+
+            if [[ $Default_Compiler == "gcc" ]]; then
+                [[ -d "$ProjectName" ]] && Compile_The_Source "g++" "$source_file" "${ProjectName}/${CPP_DirName}"
+                [[ ! -d "$ProjectName" ]] && Compile_The_Source "g++" "$source_file" "${CPP_DirName}"
+            else
+                [[ -d "$ProjectName" ]] && Compile_The_Source "$Default_Compiler" "$source_file" "${ProjectName}/${C_DirName}"
+                [[ ! -d "$ProjectName" ]] && Compile_The_Source "$Default_Compiler" "$source_file" "${C_DirName}"
+            fi
+        elif [[ "${source_file}" == *.c ]]; then
+            # C Files
+            [[ $set_project_name == "false" && ! -d "${C_DirName}" ]] && Create_Dirs "$set_project_name" "false" "true"
+            [[ $set_project_name == "true" &&  ! -d "${ProjectName}/${C_DirName}" ]] && Create_Dirs "$set_project_name" "false" "true"
+            
+            [[ -d "$ProjectName" ]] && Compile_The_Source "$Default_Compiler" "$source_file" "${ProjectName}/${C_DirName}"
+            [[ ! -d "$ProjectName" ]] && Compile_The_Source "$Default_Compiler" "$source_file" "${C_DirName}"
+        fi
+    fi
+done
+
+
+save_config
